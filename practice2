@@ -1,0 +1,118 @@
+# پروژه: پیش‌بینی خوش‌خیم یا بدخیم بودن تومور پستان
+# حوزه: یادگیری ماشین و دسته‌بندی داده‌ها
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn.datasets import load_breast_cancer
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    classification_report
+)
+
+# 1. بارگذاری داده‌ها
+data = load_breast_cancer()
+X = pd.DataFrame(data.data, columns=data.feature_names)
+y = pd.Series(data.target)
+
+# 0 = malignant (بدخیم)، 1 = benign (خوش‌خیم)
+target_names = data.target_names
+
+print("ابعاد داده‌ها:", X.shape)
+print("\nتعداد نمونه‌ها در هر کلاس:")
+print(y.value_counts().rename(index={0: "بدخیم", 1: "خوش‌خیم"}))
+
+# 2. تقسیم داده‌ها به آموزش و آزمون
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    random_state=42,
+    stratify=y
+)
+
+# 3. نرمال‌سازی ویژگی‌ها
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# 4. آموزش مدل‌ها
+models = {
+    "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+    "Random Forest": RandomForestClassifier(
+        n_estimators=100,
+        random_state=42
+    )
+}
+
+results = {}
+
+for name, model in models.items():
+    model.fit(X_train_scaled, y_train)
+    y_pred = model.predict(X_test_scaled)
+    accuracy = accuracy_score(y_test, y_pred)
+    results[name] = accuracy
+
+    print(f"\n{'=' * 50}")
+    print(f"مدل: {name}")
+    print(f"دقت مدل: {accuracy:.4f}")
+    print("\nگزارش دسته‌بندی:")
+    print(classification_report(
+        y_test, y_pred,
+        target_names=target_names
+    ))
+
+# 5. انتخاب بهترین مدل
+best_model_name = max(results, key=results.get)
+best_model = models[best_model_name]
+
+print(f"\nبهترین مدل: {best_model_name}")
+print(f"دقت بهترین مدل: {results[best_model_name]:.4f}")
+
+# 6. ماتریس درهم‌ریختگی
+y_best_pred = best_model.predict(X_test_scaled)
+cm = confusion_matrix(y_test, y_best_pred)
+
+plt.figure(figsize=(6, 5))
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=target_names,
+    yticklabels=target_names
+)
+plt.xlabel("پیش‌بینی مدل")
+plt.ylabel("برچسب واقعی")
+plt.title(f"ماتریس درهم‌ریختگی - {best_model_name}")
+plt.tight_layout()
+plt.savefig("confusion_matrix.png")
+plt.show()
+
+# 7. مقایسه دقت مدل‌ها
+plt.figure(figsize=(7, 5))
+plt.bar(results.keys(), results.values(), color=["#4C72B0", "#55A868"])
+plt.ylim(0.90, 1.00)
+plt.ylabel("دقت")
+plt.title("مقایسه دقت مدل‌ها")
+for i, (name, accuracy) in enumerate(results.items()):
+    plt.text(i, accuracy + 0.002, f"{accuracy:.3f}", ha="center")
+plt.tight_layout()
+plt.savefig("model_comparison.png")
+plt.show()
+
+# 8. پیش‌بینی برای یک نمونه جدید
+sample = X_test.iloc[[0]]
+sample_scaled = scaler.transform(sample)
+prediction = best_model.predict(sample_scaled)[0]
+probability = best_model.predict_proba(sample_scaled)[0]
+
+print("\nپیش‌بینی برای یک نمونه جدید:")
+print(f"برچسب پیش‌بینی‌شده: {target_names[prediction]}")
+print(f"احتمال بدخیم بودن: {probability[0]:.3f}")
+print(f"احتمال خوش‌خیم بودن: {probability[1]:.3f}")
